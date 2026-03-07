@@ -8,6 +8,7 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUI from '@fastify/swagger-ui';
 import { auth } from './lib/auth.js';
 import fastifyCors from '@fastify/cors';
+import fastifyApiReference from '@scalar/fastify-api-reference';
 
 const app = Fastify({
   logger: true
@@ -33,14 +34,43 @@ await app.register(fastifySwagger, {
   
   });
   
-  await app.register(fastifySwaggerUI, {
+ /* await app.register(fastifySwaggerUI, {
     routePrefix: '/docs',
-  });
-
+  }); */
   await app.register(fastifyCors, {
     origin: ["http://localhost:3000"],
     credentials: true
   })
+
+await app.register(fastifyApiReference, {
+  routePrefix: "/docs",
+  configuration: {
+    sources: [
+      {
+        title: "Bootcamp treinos api",
+        slug: "Bootcamp-treinos-api",
+        url: "/swagger.json"
+      },
+      {
+        title: "Auth API",
+        slug: "Auth-API",
+        url: "/api/auth/open-ai/generate-schema"
+      }
+    ]
+  }
+})
+
+app.withTypeProvider<ZodTypeProvider>().route({
+  method: "GET",
+  url: "/swagger.json",
+  schema: {
+    hide: true,
+  },
+  handler: async () => {
+    return app.swagger()
+  }
+
+})
 
 // Declare a route
 app.withTypeProvider<ZodTypeProvider>().route({
