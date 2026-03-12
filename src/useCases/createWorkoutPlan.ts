@@ -1,7 +1,8 @@
 import type { WeekDay } from "../generated/prisma/enums.js"
 import { prisma } from "../lib/db.js"
+import { NotFoundError } from "../errors/index.js";
 
-interface Dto {
+interface InputDto {
     userId: string
     name: string
     workoutDays: Array<{
@@ -9,6 +10,7 @@ interface Dto {
         weekDay: WeekDay
         isRest: boolean
         estimatedDurationInSeconds: number
+        coverImageUrl?: string | undefined
         exercises: Array<{
             order: number
             name: string
@@ -20,9 +22,28 @@ interface Dto {
 
 }
 
+interface OutputDto {
+    id: string;
+    name: string;
+    workoutDays: Array<{
+      name: string;
+      weekDay: WeekDay;
+      isRest: boolean;
+      estimatedDurationInSeconds: number;
+      coverImageUrl?: string | undefined
+      exercises: Array<{
+        order: number;
+        name: string;
+        sets: number;
+        reps: number;
+        restTimeInSeconds: number;
+      }>;
+    }>;
+  }
+
 export class CreateWorkoutPlan {
 
-    async execute(dto: Dto) {
+    async execute(dto: InputDto): Promise<OutputDto> {
 
         const existingWorkoutPlan = await prisma.workoutPlan.findFirst({
             where: {
@@ -43,7 +64,7 @@ export class CreateWorkoutPlan {
                 })
             }
 
-            const result = await tx.workoutPlan.create({
+            const workoutPlan = await tx.workoutPlan.create({
                 data: {
                     name: dto.name,
                     userId: dto.userId,
@@ -67,8 +88,38 @@ export class CreateWorkoutPlan {
                     },
                 },
             });
-            return result
+            const result = await tx.workoutPlan.findUnique({
+                where: { id: workoutPlan.id },
+                include: {
+                    workoutDays: {
+                        include: {
+                            exercises: true,
+                        },
+                    },
+                },
+            });
+            if (!result) {
+                throw new NotFoundError("Workout plan not found");
+            }
 
+            return {
+                id: result.id,
+                name: result.name,
+                workoutDays: result.workoutDays.map((day) => ({
+                  name: day.name,
+                  weekDay: day.weekDay,
+                  isRest: day.isRest,
+                  estimatedDurationInSeconds: day.estimatedDurationInSeconds,
+                  coverImageUrl: day.coverImageUrl ?? undefined,
+                  exercises: day.exercises.map((exercise) => ({
+                    order: exercise.order,
+                    name: exercise.name,
+                    sets: exercise.sets,
+                    reps: exercise.reps,
+                    restTimeInSeconds: exercise.restTimeInSeconds,
+                  })),
+                })),
+              };
         })
 
 
